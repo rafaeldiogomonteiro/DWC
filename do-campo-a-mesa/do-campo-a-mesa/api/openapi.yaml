@@ -1,0 +1,742 @@
+openapi: 3.0.3
+info:
+  title: Do Campo à Mesa API
+  version: 1.0.0
+  description: |
+    API REST do mercado digital de produtores locais com leilões em tempo real.
+
+    **Autenticação:** `POST /auth/login` devolve um JWT. Carregue em **Authorize** e cole o token
+    (sem a palavra "Bearer").
+
+    **Tempo real:** as licitações são feitas por Socket.io (evento `licitar`), não por REST.
+    Ver a tabela de eventos no relatório.
+servers:
+  - url: /api
+    description: Mesmo servidor que serve esta documentação
+  - url: http://localhost:3000/api
+    description: Desenvolvimento local
+# Por omissão as rotas são públicas; as protegidas declaram bearerAuth
+security: []
+tags:
+  - { name: Sistema }
+  - { name: Autenticação }
+  - { name: Produtos }
+  - { name: Produtores }
+  - { name: Encomendas }
+  - { name: Leilões }
+  - { name: Avaliações }
+  - { name: Admin }
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Verificar se a API está a responder
+      responses:
+        '200':
+          description: API ativa
+          content: { application/json: { schema: { type: object, properties: { estado: { type: string, example: ok } } } } }
+
+  /auth/registo:
+    post:
+      tags: [Autenticação]
+      summary: Registar comprador ou produtor
+      description: O papel `admin` nunca pode ser escolhido. Um produtor novo fica por validar até o administrador o aprovar.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegistoInput' } } }
+      responses:
+        '201':
+          description: Conta criada e sessão iniciada
+          headers: { Location: { schema: { type: string, example: /api/auth/eu } } }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Sessao'
+                  - type: object
+                    properties: { id: { type: string } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '409': { $ref: '#/components/responses/Conflito' }
+
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Iniciar sessão e obter um JWT (expira em 2 h)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: tasca@exemplo.pt }
+                password: { type: string, example: password123 }
+      responses:
+        '200': { description: Sessão iniciada, content: { application/json: { schema: { $ref: '#/components/schemas/Sessao' } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /auth/eu:
+    get:
+      tags: [Autenticação]
+      summary: Dados do utilizador autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Utilizador, content: { application/json: { schema: { $ref: '#/components/schemas/Utilizador' } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /products:
+    get:
+      tags: [Produtos]
+      summary: Pesquisar produtos do catálogo
+      description: Sem o parâmetro `produtor`, só devolve produtos de produtores validados.
+      parameters:
+        - { name: q, in: query, description: 'Texto no nome, na descrição (ingredientes) ou no nome do produtor ($regex)', schema: { type: string } }
+        - { name: categoria, in: query, schema: { $ref: '#/components/schemas/Categoria' } }
+        - { name: precoMin, in: query, description: Preço mínimo ($gte), schema: { type: number } }
+        - { name: precoMax, in: query, description: Preço máximo ($lte), schema: { type: number } }
+        - { name: bio, in: query, description: Só modo de produção biológico, schema: { type: boolean } }
+        - { name: epoca, in: query, schema: { $ref: '#/components/schemas/Epoca' } }
+        - { name: produtor, in: query, description: Id do produtor, schema: { type: string } }
+        - { name: localidade, in: query, description: Localidade do produtor, schema: { type: string } }
+        - { name: ordenacao, in: query, schema: { type: string, enum: [nome, preco_asc, preco_desc, recentes], default: nome } }
+      responses:
+        '200':
+          description: Lista de produtos
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Produto' } } } }
+    post:
+      tags: [Produtos]
+      summary: Criar produto (produtor validado)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProdutoInput' } } }
+      responses:
+        '201':
+          description: Produto criado
+          headers: { Location: { description: URI do novo produto, schema: { type: string, example: /api/products/66f5a1c2e4b0a1b2c3d4e5f6 } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Produto' } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /products/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Produtos]
+      summary: Detalhe de um produto
+      responses:
+        '200': { description: Produto, content: { application/json: { schema: { $ref: '#/components/schemas/Produto' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+    put:
+      tags: [Produtos]
+      summary: Atualizar produto (produtor dono)
+      description: Se o produto for de outro produtor a resposta é 404 (não revela que existe).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProdutoInput' } } }
+      responses:
+        '200': { description: Produto atualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Produto' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+    delete:
+      tags: [Produtos]
+      summary: Remover produto (produtor dono)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Removido }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /products/{id}/imagem:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Produtos]
+      summary: Carregar a fotografia do produto (JPEG, PNG ou WebP até 5 MB)
+      description: Guardada no Azure Blob Storage quando `STORAGE_CONN` está definida; senão em disco (desenvolvimento).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagem]
+              properties: { imagem: { type: string, format: binary } }
+      responses:
+        '200':
+          description: URL público da imagem
+          content: { application/json: { schema: { type: object, properties: { imagemUrl: { type: string } } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /producers:
+    get:
+      tags: [Produtores]
+      summary: Listar produtores validados
+      parameters:
+        - { name: localidade, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Lista de produtores
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ProdutorPublico' } } } }
+
+  /producers/eu:
+    put:
+      tags: [Produtores]
+      summary: Atualizar a página pública do produtor autenticado
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nomeExploracao: { type: string }
+                descricao: { type: string }
+                localidade: { type: string }
+                localizacao: { $ref: '#/components/schemas/Localizacao' }
+      responses:
+        '200': { description: Utilizador atualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Utilizador' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /producers/eu/estatisticas:
+    get:
+      tags: [Produtores]
+      summary: Estatísticas de vendas, encomendas, avaliações e stock baixo do produtor autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Indicadores, content: { application/json: { schema: { $ref: '#/components/schemas/EstatisticasProdutor' } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /producers/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Produtores]
+      summary: Página pública do produtor (dados, mapa, produtos e avaliação média)
+      responses:
+        '200':
+          description: Produtor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  produtor: { $ref: '#/components/schemas/ProdutorPublico' }
+                  produtos: { type: array, items: { $ref: '#/components/schemas/Produto' } }
+                  avaliacaoMedia: { type: number, example: 4.5 }
+                  numAvaliacoes: { type: integer }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /orders:
+    post:
+      tags: [Encomendas]
+      summary: Criar encomenda(s) a partir do carrinho (comprador)
+      description: |
+        O stock é reservado de forma atómica. As linhas são agrupadas por produtor e é criada uma
+        encomenda para cada um. Cada produtor recebe o evento `nova-encomenda` por Socket.io.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/EncomendaInput' } } }
+      responses:
+        '201': { description: Encomendas criadas (uma por produtor), content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Encomenda' } } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '409': { description: Stock insuficiente, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: 'Stock insuficiente: Kiwi Hayward' } } } }
+    get:
+      tags: [Encomendas]
+      summary: Encomendas do utilizador (comprador ou produtor; admin vê todas)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoEncomenda' } }
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Encomenda' } } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /orders/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Encomendas]
+      summary: Detalhe de uma encomenda (comprador, produtor ou admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Encomenda, content: { application/json: { schema: { $ref: '#/components/schemas/Encomenda' } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /orders/{id}/estado:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Encomendas]
+      summary: Avançar o estado da encomenda (produtor dono)
+      description: O estado só pode avançar (pendente → confirmada → pronta → entregue). O comprador recebe `encomenda-atualizada` por Socket.io.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties: { estado: { $ref: '#/components/schemas/EstadoEncomenda' } }
+      responses:
+        '200': { description: Encomenda atualizada, content: { application/json: { schema: { $ref: '#/components/schemas/Encomenda' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '409': { description: O estado só pode avançar, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+
+  /auctions:
+    get:
+      tags: [Leilões]
+      summary: Listar leilões
+      parameters:
+        - { name: estado, in: query, schema: { type: string, enum: [agendado, ativo, terminado] } }
+        - { name: produtor, in: query, schema: { type: string } }
+        - { name: terminaAntesDe, in: query, description: 'Leilões que terminam antes desta data ($lt)', schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Leilao' } } } } }
+    post:
+      tags: [Leilões]
+      summary: Criar leilão (produtor validado)
+      description: '`licitacaoAtual.valor` começa no preço base. Sem `iniciaEm` o leilão abre de imediato.'
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LeilaoInput' } } }
+      responses:
+        '201':
+          description: Leilão criado
+          headers: { Location: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Leilao' } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /auctions/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Leilões]
+      summary: Detalhe do leilão e últimas 20 licitações
+      responses:
+        '200':
+          description: Leilão
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leilao: { $ref: '#/components/schemas/Leilao' }
+                  licitacoes: { type: array, items: { $ref: '#/components/schemas/Licitacao' } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /auctions/{id}/bids:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Leilões]
+      summary: Histórico de licitações (últimas 50)
+      responses:
+        '200': { description: Licitações, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Licitacao' } } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+
+  /reviews:
+    get:
+      tags: [Avaliações]
+      summary: Listar avaliações visíveis
+      parameters:
+        - { name: produtor, in: query, schema: { type: string } }
+        - { name: produto, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Avaliacao' } } } } }
+    post:
+      tags: [Avaliações]
+      summary: Avaliar um produto ou o produtor de uma encomenda entregue (comprador)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [encomenda, classificacao]
+              properties:
+                encomenda: { type: string }
+                produto: { type: string, description: Opcional; sem produto a avaliação é ao produtor }
+                classificacao: { type: integer, minimum: 1, maximum: 5 }
+                comentario: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Avaliação criada, content: { application/json: { schema: { $ref: '#/components/schemas/Avaliacao' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '409': { description: Encomenda ainda não entregue ou já avaliada, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+
+  /reviews/{id}/denuncia:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Avaliações]
+      summary: Denunciar uma avaliação
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Denúncia registada }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /admin/estatisticas:
+    get:
+      tags: [Admin]
+      summary: Contagens globais (utilizadores, encomendas, leilões ativos…)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Contagens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  utilizadores: { type: integer }
+                  produtores: { type: integer }
+                  produtoresPendentes: { type: integer }
+                  encomendasHoje: { type: integer }
+                  encomendasAbertas: { type: integer }
+                  leiloesAtivos: { type: integer }
+                  avaliacoesDenunciadas: { type: integer }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /admin/servicos:
+    get:
+      tags: [Admin]
+      summary: Estado dos serviços (API, Socket.io, MongoDB, storage, Swagger)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Estado de cada serviço, content: { application/json: { schema: { type: object, additionalProperties: { type: object, properties: { estado: { type: string } } } } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /admin/utilizadores:
+    get:
+      tags: [Admin]
+      summary: Listar utilizadores
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: papel, in: query, schema: { type: string, enum: [comprador, produtor, admin] } }
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Utilizador' } } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /admin/produtores/pendentes:
+    get:
+      tags: [Admin]
+      summary: Produtores à espera de validação
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Utilizador' } } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /admin/produtores/{id}/validacao:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Admin]
+      summary: Aprovar ou rejeitar o registo de um produtor
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aprovado]
+              properties: { aprovado: { type: boolean } }
+      responses:
+        '200': { description: Produtor atualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Utilizador' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /admin/reviews/denunciadas:
+    get:
+      tags: [Admin]
+      summary: Avaliações com denúncias
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Avaliacao' } } } } }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+
+  /admin/reviews/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Admin]
+      summary: Moderar avaliação (ocultar ou repor)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [visivel]
+              properties: { visivel: { type: boolean } }
+      responses:
+        '200': { description: Avaliação atualizada, content: { application/json: { schema: { $ref: '#/components/schemas/Avaliacao' } } } }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { $ref: '#/components/responses/SemPermissao' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, example: 66f5a1c2e4b0a1b2c3d4e5f6 } }
+
+  responses:
+    DadosInvalidos:
+      description: Dados inválidos
+      content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: Dados inválidos, detalhes: { categoria: Path `categoria` is required. } } } }
+    NaoAutenticado:
+      description: Token em falta, inválido ou expirado (ou credenciais erradas)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: Token inválido ou em falta } } }
+    SemPermissao:
+      description: Autenticado, mas sem o papel necessário (ou produtor por validar)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: Sem permissão } } }
+    NaoEncontrado:
+      description: Recurso não encontrado
+      content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: Produto não encontrado } } }
+    Conflito:
+      description: Conflito com o estado atual
+      content: { application/json: { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: Email já registado } } }
+
+  schemas:
+    Erro:
+      type: object
+      properties:
+        erro: { type: string, example: Credenciais inválidas }
+        detalhes: { type: object, additionalProperties: { type: string } }
+
+    Categoria: { type: string, enum: [Hortícolas, Fruta, Mel, Vinho, Queijo, Padaria, Outros] }
+    Epoca: { type: string, enum: [Primavera, Verão, Outono, Inverno] }
+    EstadoEncomenda: { type: string, enum: [pendente, confirmada, pronta, entregue] }
+    Localizacao:
+      type: object
+      properties:
+        lat: { type: number, example: 41.7675 }
+        lng: { type: number, example: -8.5839 }
+
+    RegistoInput:
+      type: object
+      required: [nome, email, password]
+      properties:
+        nome: { type: string, example: Tasca do Lima }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+        papel: { type: string, enum: [comprador, produtor], default: comprador }
+        produtor:
+          type: object
+          properties:
+            nomeExploracao: { type: string }
+            localidade: { type: string }
+            descricao: { type: string }
+        comprador:
+          type: object
+          properties:
+            tipo: { type: string, enum: [particular, restaurante] }
+            morada: { type: string }
+
+    Utilizador:
+      type: object
+      properties:
+        id: { type: string }
+        nome: { type: string }
+        email: { type: string }
+        papel: { type: string, enum: [comprador, produtor, admin] }
+        produtor: { $ref: '#/components/schemas/DadosProdutor' }
+
+    DadosProdutor:
+      type: object
+      properties:
+        nomeExploracao: { type: string }
+        descricao: { type: string }
+        localidade: { type: string }
+        localizacao: { $ref: '#/components/schemas/Localizacao' }
+        validado: { type: boolean }
+        rejeitado: { type: boolean }
+
+    ProdutorPublico:
+      type: object
+      properties:
+        _id: { type: string }
+        nome: { type: string }
+        produtor: { $ref: '#/components/schemas/DadosProdutor' }
+
+    Sessao:
+      type: object
+      properties:
+        token: { type: string }
+        utilizador: { $ref: '#/components/schemas/Utilizador' }
+
+    ProdutoInput:
+      type: object
+      required: [nome, categoria, preco]
+      properties:
+        nome: { type: string, example: Kiwi Hayward }
+        descricao: { type: string }
+        categoria: { $ref: '#/components/schemas/Categoria' }
+        preco: { type: number, minimum: 0, example: 2.4 }
+        unidade: { type: string, example: kg }
+        stock: { type: integer, minimum: 0, example: 300 }
+        biologico: { type: boolean }
+        epocas: { type: array, items: { $ref: '#/components/schemas/Epoca' } }
+
+    Produto:
+      allOf:
+        - $ref: '#/components/schemas/ProdutoInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            produtor: { description: Id do produtor ou objeto com nome e localidade, oneOf: [{ type: string }, { $ref: '#/components/schemas/ProdutorPublico' }] }
+            imagemUrl: { type: string }
+            avaliacaoMedia: { type: number, minimum: 0, maximum: 5 }
+
+    EncomendaInput:
+      type: object
+      required: [linhas]
+      properties:
+        linhas:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [produto, quantidade]
+            properties:
+              produto: { type: string }
+              quantidade: { type: integer, minimum: 1 }
+        entrega:
+          type: object
+          properties:
+            tipo: { type: string, enum: [levantamento, entrega], default: levantamento }
+            morada: { type: string, description: Obrigatória quando tipo = entrega }
+
+    Encomenda:
+      type: object
+      properties:
+        _id: { type: string }
+        comprador: { description: Id ou objeto com nome e email, oneOf: [{ type: string }, { type: object }] }
+        produtor: { description: Id ou objeto com nome, oneOf: [{ type: string }, { type: object }] }
+        linhas:
+          type: array
+          items:
+            type: object
+            properties:
+              produto: { type: string }
+              nome: { type: string, description: Cópia do nome no momento da compra }
+              precoUnit: { type: number, description: Cópia do preço no momento da compra }
+              unidade: { type: string }
+              quantidade: { type: integer }
+        total: { type: number }
+        estado: { $ref: '#/components/schemas/EstadoEncomenda' }
+        entrega: { type: object, properties: { tipo: { type: string }, morada: { type: string } } }
+        origem: { type: string, enum: [loja, leilao] }
+        leilao: { type: string }
+        historicoEstados: { type: array, items: { type: object, properties: { estado: { type: string }, em: { type: string, format: date-time } } } }
+        createdAt: { type: string, format: date-time }
+
+    LeilaoInput:
+      type: object
+      required: [lote, precoBase, incremento]
+      properties:
+        lote: { type: string, example: '200 kg de kiwi Hayward, calibre A' }
+        descricao: { type: string }
+        quantidade: { type: string, example: 200 kg }
+        produto: { type: string, description: Id de um produto do próprio produtor }
+        precoBase: { type: number, minimum: 0, example: 200 }
+        incremento: { type: number, minimum: 0.01, example: 5 }
+        duracaoMinutos: { type: integer, minimum: 1, default: 30 }
+        iniciaEm: { type: string, format: date-time, description: Opcional; no futuro fica agendado }
+
+    Leilao:
+      type: object
+      properties:
+        _id: { type: string }
+        produtor: { oneOf: [{ type: string }, { $ref: '#/components/schemas/ProdutorPublico' }] }
+        produto: { oneOf: [{ type: string }, { type: object }] }
+        lote: { type: string }
+        descricao: { type: string }
+        quantidade: { type: string }
+        precoBase: { type: number }
+        incremento: { type: number }
+        licitacaoAtual:
+          type: object
+          properties:
+            valor: { type: number }
+            comprador: { type: string }
+            nome: { type: string }
+            em: { type: string, format: date-time }
+        numLicitacoes: { type: integer }
+        iniciaEm: { type: string, format: date-time }
+        terminaEm: { type: string, format: date-time }
+        estado: { type: string, enum: [agendado, ativo, terminado] }
+        encomenda: { type: string, description: Encomenda criada para o vencedor }
+
+    Licitacao:
+      type: object
+      properties:
+        _id: { type: string }
+        leilao: { type: string }
+        comprador: { type: string }
+        nome: { type: string }
+        valor: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    Avaliacao:
+      type: object
+      properties:
+        _id: { type: string }
+        autor: { oneOf: [{ type: string }, { type: object, properties: { nome: { type: string } } }] }
+        produtor: { type: string }
+        produto: { oneOf: [{ type: string }, { type: object }] }
+        encomenda: { type: string }
+        classificacao: { type: integer, minimum: 1, maximum: 5 }
+        comentario: { type: string }
+        denuncias: { type: integer }
+        visivel: { type: boolean }
+
+    EstatisticasProdutor:
+      type: object
+      properties:
+        vendasTotal: { type: number }
+        vendasUltimos30Dias: { type: number }
+        numEncomendas: { type: integer }
+        encomendasPorEstado: { type: object, additionalProperties: { type: integer } }
+        avaliacaoMedia: { type: number }
+        numAvaliacoes: { type: integer }
+        leiloesAtivos: { type: integer }
+        stockBaixo: { type: array, items: { type: object, properties: { nome: { type: string }, stock: { type: integer }, unidade: { type: string } } } }
+        maisVendidos: { type: array, items: { type: object, properties: { nome: { type: string }, quantidade: { type: integer }, receita: { type: number } } } }

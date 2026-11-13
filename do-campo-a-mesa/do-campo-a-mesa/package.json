@@ -1,0 +1,14 @@
+{
+  "name": "do-campo-a-mesa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Do Campo à Mesa — trabalho DWC",
+  "scripts": {
+    "testar": "node scripts/testar-tudo.mjs"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "playwright": "^1.65.0",
+    "socket.io-client": "^4.8.4"
+  }
+}

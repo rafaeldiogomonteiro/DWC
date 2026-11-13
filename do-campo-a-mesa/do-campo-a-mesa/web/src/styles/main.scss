@@ -1,0 +1,31 @@
+// Ordem: variáveis -> Bootstrap -> mixins -> parciais da aplicação
+@import 'variables';
+@import 'bootstrap/scss/bootstrap';
+@import 'mixins';
+@import 'catalogo';
+@import 'leiloes';
+@import 'paineis';
+
+body { display: flex; flex-direction: column; min-height: 100vh; }
+main { flex: 1; }
+
+.barra-topo { background: $branco; border-bottom: 1px solid $linha; }
+.marca { @include serif; font-weight: 700; color: $tinta; }
+.texto-secundario { color: $texto-secundario; }
+.rodape { border-top: 1px solid $linha; background: $branco; }
+
+h1 { @include serif; }
+
+.formulario-estreito { max-width: 28rem; margin-inline: auto; }
+
+// Notificações em tempo real: no fundo do ecrã no telemóvel, canto superior direito no desktop
+.notificacoes {
+  position: fixed; z-index: 1080; left: .75rem; right: .75rem; bottom: .75rem;
+  display: flex; flex-direction: column; gap: .5rem;
+  @include a-partir-de(md) { left: auto; bottom: auto; top: 4.5rem; width: 22rem; }
+  .toast { width: 100%; border-left: 4px solid $verde; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+api/uploads/
+docs/apresentacao/
+docs/capturas/
+scripts/gerar-capturas.mjs

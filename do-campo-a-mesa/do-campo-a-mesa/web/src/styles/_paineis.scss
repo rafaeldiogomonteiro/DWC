@@ -1,0 +1,41 @@
+// Painéis (produtor e administrador), encomendas e carrinho
+.grelha-indicadores { @include grelha((base: 2, md: 3, xl: 6)); }
+
+.indicador {
+  &__valor { font-size: 1.4rem; font-weight: 700; }
+  &--alerta { border-color: $terracota; background: rgba($terracota, .06); }
+}
+
+.paineis {
+  display: grid; gap: 1.5rem;
+  @include a-partir-de(lg) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.miniatura-vazia { width: 56px; height: 56px; border-radius: $border-radius-sm; background: rgba($verde, .12); }
+
+.estado-encomenda {
+  display: flex; justify-content: space-between; gap: .25rem; list-style: none; padding: 0; margin: 0;
+  li {
+    flex: 1; text-align: center; font-size: .8rem; text-transform: capitalize; color: $texto-secundario;
+    padding-top: .5rem; border-top: 4px solid $linha;
+    @include a-partir-de(md) { font-size: .9rem; }
+  }
+  .feito { color: $verde; border-color: $verde; font-weight: 600; }
+  .atual { color: $terracota; border-color: $terracota; font-weight: 700; }
+}
+
+.lista-encomendas { @include grelha((base: 1, lg: 2)); }
+
+.avaliacao-form {
+  display: flex; flex-direction: column; gap: .5rem;
+  @include a-partir-de(md) { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+}
+
+.carrinho {
+  display: grid; gap: 1rem;
+  @include a-partir-de(lg) { grid-template-columns: 1fr 22rem; align-items: start; }
+
+  &__linha { display: flex; flex-direction: column; gap: .5rem; @include a-partir-de(md) { flex-direction: row; justify-content: space-between; align-items: center; } }
+  &__qt { width: 5rem; }
+  &__subtotal { min-width: 5.5rem; text-align: right; font-weight: 600; }
+}

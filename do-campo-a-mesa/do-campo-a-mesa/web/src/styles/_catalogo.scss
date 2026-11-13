@@ -1,0 +1,68 @@
+// Catálogo: grelha Mobile First (1 -> 2 -> 3 -> 4 colunas), cartão de produto e filtros
+.grelha-produtos {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);                                       // telemóvel
+  @include a-partir-de(md) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @include a-partir-de(lg) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+  @include a-partir-de(xl) { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; }
+}
+
+.cartao-produto {
+  overflow: hidden;
+
+  &__foto, &__imagem { width: 100%; height: 160px; object-fit: cover; }
+  &__imagem {
+    display: grid; place-items: center;
+    span { @include serif; font-size: 3rem; opacity: .6; }
+  }
+  .preco { color: $verde; font-weight: 700; font-size: 1.15rem; }
+}
+
+.etiqueta {
+  font-size: .7rem; font-weight: 700;
+  padding: .15rem .5rem;
+  border-radius: .35rem;
+  background: rgba($verde, .12); color: $verde-escuro;
+  &--esgotado { background: rgba($vermelho, .12); color: $vermelho; }
+}
+
+// Uma cor por categoria (mapa SASS + @each)
+$cores-categoria: (
+  horticolas: (#CFE3CA, #335F2F),
+  fruta: (#DCE6C3, #4E6B22),
+  mel: (#F3DDA3, #86590C),
+  vinho: (#E6D3DE, #6E3353),
+  queijo: (#F1E6C4, #7F6420),
+  padaria: (#EADBC0, #7A5427),
+  outros: (#E2CDB9, #6B4123)
+);
+@each $nome, $cores in $cores-categoria {
+  .cat-#{$nome} { background: nth($cores, 1); color: nth($cores, 2); }
+}
+
+.filtros {
+  display: flex; flex-direction: column; gap: .75rem;
+
+  &__grelha {
+    @include grelha((base: 1, md: 3, xl: 6));
+    gap: .75rem;
+  }
+}
+
+.destaque h1 {
+  @include serif;
+  font-size: 2rem;
+  @include a-partir-de(lg) { font-size: 3rem; }
+}
+
+.pagina-produtor__cabecalho {
+  display: grid; gap: 1.5rem;
+  @include a-partir-de(lg) { grid-template-columns: 1fr 26rem; align-items: start; }
+  h1 { @include serif; }
+}
+
+.mapa {
+  iframe { width: 100%; height: 240px; border: 1px solid $linha; border-radius: $border-radius; display: block; }
+  a { display: inline-block; margin-top: .25rem; }
+}

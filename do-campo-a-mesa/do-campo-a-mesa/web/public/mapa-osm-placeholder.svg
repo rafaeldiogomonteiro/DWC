@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="220" viewBox="0 0 480 220" role="img" aria-label="Mapa esquemático da localização">
+  <defs>
+    <pattern id="grelha" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#d4cdbf" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="480" height="220" fill="#e6eadf"/>
+  <rect width="480" height="220" fill="url(#grelha)"/>
+  <path d="M0 140 C80 120 140 160 240 125 S400 90 480 110" stroke="#b8c9ae" stroke-width="18" fill="none" opacity="0.85"/>
+  <path d="M60 0 C100 80 120 40 170 110 S260 200 320 150 S400 60 480 90" stroke="#9bb8dc" stroke-width="10" fill="none" opacity="0.7"/>
+  <circle cx="250" cy="108" r="26" fill="#A94A26" opacity="0.22"/>
+  <circle cx="250" cy="108" r="9" fill="#2F5D3A"/>
+  <circle cx="250" cy="108" r="16" fill="none" stroke="#2F5D3A" stroke-width="3"/>
+  <rect x="12" y="12" width="156" height="30" rx="8" fill="#ffffff" opacity="0.92"/>
+  <text x="24" y="32" font-family="system-ui,sans-serif" font-size="14" fill="#1F2A1E">OpenStreetMap · localização do produtor</text>
+</svg>
