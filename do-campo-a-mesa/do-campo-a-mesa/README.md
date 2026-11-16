@@ -9,6 +9,7 @@ MEI · ESTG · IPVC
 | **Docente** | Manuel Carvalho |
 | **Aluno(a)** | Rafael Monteiro |
 | **N.º** | 27692 |
+| **Repositório GitHub** | [https://github.com/rafae/DWC](https://github.com/rafae/DWC) |
 
 Mercado digital de produtores do Alto Minho: **catálogo**, **encomendas** e **leilões em tempo real**.  
 Stack: **React (Vite)** + **Express** + **MongoDB** + **Socket.io** + **OpenAPI/Swagger**.
@@ -382,7 +383,9 @@ O aluno declara compreender o código entregue.
 
 ### Anexo B — Vídeo
 
-*(Inserir ligação YouTube, Drive ou Moodle.)*
+Vídeo de demonstração (máx. 5 min): ficheiro **`dwcVideo.mp4`** na entrega ZIP (ou a mesma versão em YouTube/Drive/Moodle, se o docente preferir upload online).
+
+**Repositório do código:** [https://github.com/rafae/DWC](https://github.com/rafae/DWC)
 
 ### Anexo C — Figuras (local / PDF de entrega; não versionadas no Git)
 

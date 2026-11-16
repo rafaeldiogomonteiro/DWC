@@ -5,6 +5,7 @@ const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const errorHandler = require('./middleware/errorHandler');
+const { origemPermitida } = require('./config/cors');
 
 const app = express();
 
@@ -14,7 +15,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => (req.secure ? next() : res.redirect(301, `https://${req.headers.host}${req.originalUrl}`)));
 }
 
-app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+app.use(cors({ origin: origemPermitida() }));
 app.use(express.json({ limit: '1mb' }));
 // Imagens guardadas localmente quando não há storage na Cloud configurado (desenvolvimento)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));

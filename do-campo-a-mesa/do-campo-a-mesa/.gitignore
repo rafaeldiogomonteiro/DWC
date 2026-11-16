@@ -7,3 +7,8 @@ api/uploads/
 docs/apresentacao/
 docs/capturas/
 scripts/gerar-capturas.mjs
+scripts/gerar-apresentacao.mjs
+scripts/gerar-pptx.py
+*.mp4
+entrega/
+Do-Campo-a-Mesa-entrega.zip

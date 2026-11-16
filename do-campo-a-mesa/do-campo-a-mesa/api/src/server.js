@@ -6,6 +6,7 @@ const app = require('./app');
 const { ligarBD } = require('./config/db');
 const registarSockets = require('./sockets');
 const { iniciarCicloLeiloes } = require('./services/cicloLeiloes');
+const { origemPermitida } = require('./config/cors');
 
 const PORT = process.env.PORT || 3000;
 
@@ -15,7 +16,7 @@ async function iniciar() {
 
   const server = http.createServer(app);
   const io = new Server(server, {
-    cors: { origin: process.env.CLIENT_URL || '*' }
+    cors: { origin: origemPermitida() }
   });
 
   // Disponibiliza o io às rotas (ex.: notificar o comprador quando a encomenda muda)
